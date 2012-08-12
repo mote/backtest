@@ -1,0 +1,7 @@
+- handle closing partial positions
+- make sure we're using decimal.Decimal everywhere
+- have per sym precision, e.g */JPY is 2, EUR/USD might be 5
+
+done
+- implement a ma strategy
+- write unit tests

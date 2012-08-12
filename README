@@ -1,0 +1,77 @@
+A very barebones backtesting library for python
+
+Should be considered beta at the moment. As I use it more and I feel more 
+confident about its stability that will change. But for now I may make
+changes to how it works. 
+
+====
+
+This is a module used to replay historical data and place limit/stop orders.
+You can use contingent orders that wont become active until a parent order
+is filled. For example if you have a buy order and want stop loss/take 
+profit orders associated with them that only become active when the initial
+buy order is filled. 
+
+It's pretty basic, and I may add to it as time passes. It's biggest 
+assumption is that your data is OK. It does no verification about the
+sanity of your data, nor does it try to sync up time series if you are
+testing multiple input sources. This is quite difficult in practise and
+requires a bunch of assumptions about what is correct behaviour. So I 
+side step the issue by ignoring it, with the assumption you will fix your
+data as you see fit.
+
+To use, subclass the BackTest object, and write your strategy logic in
+bar_close which is called for each bar of your data.
+
+You need to load up your data and tell backtest about it with bt.add_input,
+which takes the symbol (e.g. 'SPY'), an object that will return one period
+of data with each readline(), and the object used to convert the text data
+to an OHLC bar. 
+
+Once you have told bt about your data, and set up your bar_close, call 
+run() to kick things off.
+
+There is a built in data to bar convertor for Yahoo Finance data. You will
+need to reverse the data (see revfile.py).
+
+For an example see maeg.py which implements a 200 period moving average 
+crossover system. run: python maeg.py SPY.csv 
+
+Limit and Stop orders are filled which the bars range contains the limit or
+stop level. Market orders are filled immediately, at whatever level you 
+specified when the order was placed. If you want to use market orders, in
+bar_close create the order with the close of the current bar (b.cl), and it 
+will be filled and turn into an open position on the next bar.
+
+You can use Order.verify to make sure your limit/stop orders make sense. 
+Sell orders are always for a negative quantity, buy orders are always for
+a positive quantity. 
+
+Occasionally, you might have 2 orders that cancel out one another. If 
+they relate to some parent order, that parent order will be unwound as if
+it was never executed. This is rare but usually happens when a bar hits
+both a stop loss and take profit, if they are a very close together. If 
+it happens often, you need to change your strategy or use lower time 
+frame data. Check bt.poslist.rewinded for any rewound positions. 
+
+Prices should be of type decimal.Decimal
+
+Once it's done you can bt.eqvals will have the equity curve. You can also
+look through all your positions and orders as well.
+
+====
+
+If you actually find use in this please let me know and I will be more
+dilligent about improving it, adding docs etc. For now take a look at the
+example strategy and the unit tests to get a feel for how the parts all
+work. 
+
+I wrote this as something that is "good enough" for my own research, and
+am making it available if you want to verify something I write about or
+have your ideas to test. 
+
+Let me know how you go
+
+Regards,
+Pete
+peter dot werner at g mail dot com
