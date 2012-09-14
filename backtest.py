@@ -118,6 +118,7 @@ class Order(object):
 		self.trigger_parent = parent 
 		self.link = link
 		self._state = Order.UNSUB
+		self.nbars = 0
 
 	def __get_level(self):
 		return self._level
@@ -429,6 +430,7 @@ class OrderBook(object):
 		#whats in the active list
 		for oid in self.active: 
 			o = self._orders[oid]
+			o.nbars += 1
 			#make sure the order symbol matches the sym of this bar
 			if o.symbol != bar.symbol:
 				continue
@@ -528,7 +530,7 @@ class PositionList(object):
 	def cb_noop(self, p):
 		pass
 
-	def __init__(self, close_cb=None):
+	def __init__(self, close_cb=None, open_cb=None):
 		self.open = []
 		self.closed = []
 		self.rewinded = []
@@ -536,6 +538,11 @@ class PositionList(object):
 			self.close_cb = self.cb_noop
 		else:
 			self.close_cb = close_cb	
+
+		if open_cb is None:
+			self.open_cb = self.cb_noop
+		else:
+			self.open_cb = open_cb
 
 	def mark(self, bar):
 
@@ -596,7 +603,8 @@ class PositionList(object):
 
 			p = self.__find_pos(clsid)
 			if p is None:
-				raise Exception("cannot find parent to close, this id %d, parent %d" % (order.id, order.trigger_parent, clsid))
+				#raise Exception("cannot find parent to close, this id %d, parent %d" % (order.id, order.trigger_parent, clsid))
+				raise Exception("cannot find parent to close, this id %d, parent %d" % (order.id, clsid))
 
 			#todo is to make it so we can close partial orders
 			#we could split the current position into 2
@@ -637,6 +645,7 @@ class PositionList(object):
 				entry_level = order.level
 			p = Position(symbol=order.symbol, dt=dt, entry=entry_level, size=order.size, order_id=order.id)
 			self.open.append(p)
+			self.open_cb(p)
 			#print "added pos for order id %d" % order.id
 			#print [x.order_id for x in self.open]
 		return p 
@@ -685,7 +694,7 @@ class BackTest(object):
 		self.bars = {} 
 		self.inputs = []
 		self.book = OrderBook(debug=False)
-		self.poslist = PositionList(close_cb=self.close_cb)
+		self.poslist = PositionList(close_cb=self.close_cb, open_cb=self.open_cb)
 		
 
 	def __get_max_equity(self):
@@ -740,6 +749,13 @@ class BackTest(object):
 			self.min_equity = self.equity
 
 		#print "BackTest close callback() pos: %.2f, equity %.2f" % (p.value, self.equity)
+
+	#overload this to be passed the position as it is opened
+	def on_open(self, p):
+		pass
+
+	def open_cb(self, p):
+		self.on_open(p)
 
 	###
 	# add an input source from which to read bar data	
@@ -845,19 +861,22 @@ class BackTest(object):
 
 	def print_summary(self):
 
+		nbe = 0
 		nwin = 0
 		nlos = 0
 		totwin = 0
 		totlos = 0
 		for p in self.poslist.closed:
-			if p.value >= 0:
+			if p.value == 0:
+				nbe += 1
+			elif p.value > 0:
 				nwin += 1
 				totwin += p.value
 			else:
 				nlos += 1
 				totlos += p.value
 
-		tot_pos = D(nwin + nlos)
+		tot_pos = D(nwin + nlos + nbe)
 		print "%d won %d los" % (nwin, nlos)
 		if nwin == 0 or nlos == 0:
 			print "final equity: %.2f max %.2f min %.2f" % (self.equity, self.max_equity, 
@@ -865,7 +884,7 @@ class BackTest(object):
 			return
 		pos_won = nwin/tot_pos
 		pos_los = nlos/tot_pos 
-		print "%d won %d los win rate %.2f" % (nwin, nlos, pos_won)
+		print "%d won %d los %d be win rate %.2f" % (nwin, nlos, nbe, pos_won)
 		avg_win = totwin/nwin
 		avg_los = totlos/nlos
 		print "avg win %.2f avg los %.2f" % (avg_win, avg_los)
